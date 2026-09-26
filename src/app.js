@@ -10,6 +10,7 @@ const remesasRoutes = require('./modules/remesas/remesas.routes');
 const dashboardRoutes = require('./modules/dashboard/dashboard.routes');
 const creditosRoutes = require('./modules/creditos/creditos.routes');
 const reembolsosRoutes = require('./modules/reembolsos/reembolsos.routes');
+const cronogramasRoutes = require('./modules/cronogramas/cronogramas.routes');
 const errorHandler = require('./middlewares/errorHandler');
 
 const app = express();
@@ -29,6 +30,7 @@ app.use('/remesas', remesasRoutes);
 app.use('/dashboard', dashboardRoutes);
 app.use('/creditos', creditosRoutes); // incluye /creditos/:idCredito/reembolsos
 app.use('/reembolsos', reembolsosRoutes);
+app.use('/contratos', cronogramasRoutes); // /contratos/:id/reprogramar y /contratos/:id/cronogramas
 
 app.use((req, res) => res.status(404).json({ error: 'Ruta no encontrada' }));
 app.use(errorHandler);

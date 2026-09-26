@@ -1,5 +1,6 @@
 const { withTransaction, pool } = require('../../config/db');
 const { registrarAuditoria } = require('../../utils/auditoria');
+const { generarCuotas } = require('../../utils/cuotas');
 
 // IDs fijos segun el orden de insercion en sigec_seed.sql
 const ID_ESTADO_CONTRATO_REGISTRADO = 2;
@@ -8,25 +9,8 @@ const ID_ESTADO_CUOTA_PENDIENTE = 1;
 const ID_ESTADO_PROCESO_MATRICULA_REGISTRADA = 1;
 const ID_TIPO_MOVIMIENTO_CONTRATO_GENERADO = 1;
 
-function generarNumeroCuotas(totalContrato, numeroCuotas, fechaPrimerVencimiento) {
-  // Reparte el total entre las cuotas. La ultima cuota absorbe el
-  // redondeo para que la suma cuadre exactamente con total_contrato.
-  const montoBase = Math.floor((totalContrato / numeroCuotas) * 100) / 100;
-  const cuotas = [];
-  let acumulado = 0;
-
-  for (let i = 1; i <= numeroCuotas; i++) {
-    const esUltima = i === numeroCuotas;
-    const monto = esUltima ? Math.round((totalContrato - acumulado) * 100) / 100 : montoBase;
-    acumulado += monto;
-
-    const fecha = new Date(fechaPrimerVencimiento);
-    fecha.setMonth(fecha.getMonth() + (i - 1));
-
-    cuotas.push({ numero: i, monto, fecha: fecha.toISOString().slice(0, 10) });
-  }
-  return cuotas;
-}
+// La logica de reparto de cuotas vive en src/utils/cuotas.js (compartida
+// con la reprogramacion de cronograma en cronogramas.service.js).
 
 async function generarNumeroContrato(client, idEmpresa) {
   // Bloquea la fila de la empresa durante la transaccion para evitar que
@@ -84,7 +68,7 @@ async function crear(idEmpresa, data, idUsuarioCreador) {
     const cronograma = cronogramaRows[0];
 
     // 4) Generar cuotas (RG-031/032/033)
-    const cuotasCalculadas = generarNumeroCuotas(totalContrato, numeroCuotas, fechaPrimerVencimiento);
+    const cuotasCalculadas = generarCuotas(totalContrato, numeroCuotas, fechaPrimerVencimiento);
     for (const c of cuotasCalculadas) {
       await client.query(
         `INSERT INTO cuota (id_cronograma, numero_cuota, fecha_vencimiento, monto_programado, id_estado_cuota)
@@ -127,12 +111,15 @@ async function obtenerConCronograma(idContrato) {
   );
   if (contratoRows.length === 0) return null;
 
+  // Solo el cronograma VIGENTE (Activo). Si el contrato fue reprogramado,
+  // el historial completo (incluyendo cronogramas reemplazados) se
+  // consulta aparte en GET /contratos/:id/cronogramas.
   const { rows: cuotas } = await pool.query(
     `SELECT cu.* FROM cuota cu
        JOIN cronograma cr ON cr.id_cronograma = cu.id_cronograma
-      WHERE cr.id_contrato = $1
+      WHERE cr.id_contrato = $1 AND cr.id_estado_cronograma = $2
       ORDER BY cu.numero_cuota`,
-    [idContrato]
+    [idContrato, ID_ESTADO_CRONOGRAMA_ACTIVO]
   );
 
   return { contrato: contratoRows[0], cuotas };

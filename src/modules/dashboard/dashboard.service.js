@@ -3,6 +3,7 @@ const { pool } = require('../../config/db');
 // IDs fijos segun el orden de insercion en sigec_seed.sql
 const ID_ESTADO_CUOTA_PENDIENTE = 1;
 const ID_ESTADO_CUOTA_PARCIAL = 2;
+const ID_ESTADO_CUOTA_ANULADA = 5;
 const ID_ESTADO_REEMBOLSO_SOLICITADO = 1;
 const ID_ESTADO_REMESA_GENERADA = 2;
 const ID_ESTADO_REMESA_ENVIADA = 3;
@@ -194,8 +195,8 @@ async function ceoDashboard(idEmpresa) {
             SELECT id_cuota, sum(monto_aplicado) AS aplicado
               FROM aplicacion_pago GROUP BY id_cuota
        ) ap ON ap.id_cuota = cu.id_cuota
-      WHERE c.id_empresa = $1`,
-    [idEmpresa]
+      WHERE c.id_empresa = $1 AND cu.id_estado_cuota != $2`,
+    [idEmpresa, ID_ESTADO_CUOTA_ANULADA]
   );
   const carteraTotal = Number(carteraRows[0].cartera_total);
   const montoVencido = Number(carteraRows[0].monto_vencido);
